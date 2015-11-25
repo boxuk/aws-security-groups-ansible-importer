@@ -1,0 +1,48 @@
+{% macro show_range(rule, range) %}
+          - proto: {% if rule['IpProtocol'] == "-1" %}all{% else %}{{ rule['IpProtocol'] }}{% endif %}
+            from_port: {% if rule['FromPort'] is defined %}{{ rule['FromPort'] }}{% else %}-1{% endif %}
+            to_port: {% if rule['ToPort'] is defined %}{{ rule['ToPort'] }}{% else %}-1{% endif %}
+            cidr_ip: {{ range['CidrIp'] }}
+{%- endmacro -%}
+{% macro show_group(rule, group) %}
+          - proto: {% if rule['IpProtocol'] == "-1" %}all{% else %}{{ rule['IpProtocol'] }}{% endif %}
+            from_port: {% if rule['FromPort'] is defined %}{{ rule['FromPort'] }}{% else %}-1{% endif %}
+            to_port: {% if rule['ToPort'] is defined %}{{ rule['ToPort'] }}{% else %}-1{% endif %}
+            group_name: {{ sgs[group['GroupId']][0] }}
+            group_desc: {{ sgs[group['GroupId']][1] }}
+{%- endmacro -%}
+{% macro ippermissions(sg) %}
+{% if sg['IpPermissions']|length > 0 %}        rules:
+{%- for ipperm in sg['IpPermissions'] -%}
+    {%- for range in ipperm['IpRanges'] -%}
+        {{- show_range(ipperm, range) -}}
+    {%- endfor -%}
+    {%- for group in ipperm['UserIdGroupPairs'] -%}
+        {{- show_group(ipperm, group) -}}
+    {%- endfor -%}
+{%- endfor -%}
+{%- endif -%}
+{%- endmacro -%}
+{% macro ippermissionsegress(sg) %}
+{% if sg['IpPermissions']|length > 0 %}        rules_egress:
+{%- for ipperm in sg['IpPermissionsEgress'] -%}
+    {%- for range in ipperm['IpRanges'] -%}
+        {{- show_range(ipperm, range) -}}
+    {%- endfor -%}
+    {%- for group in ipperm['UserIdGroupPairs'] -%}
+        {{- show_group(ipperm, group) -}}
+    {%- endfor -%}
+{%- endfor -%}
+{%- endif -%}
+{%- endmacro -%}
+{% macro show() %}    - name: {{ sg['GroupName'] }}
+      local_action:
+        module: ec2_group
+        name: '{{ sg['GroupName'] }}'
+        description: '{{ sg['Description'] }}'{% if sg['VpcId'] %}
+        vpc_id: '{{ sg['VpcId'] }}'{% endif %}
+        region: 'eu-west-1'
+        aws_access_key: '{{ "{{" }} aws_access_key {{ "}}" }}'
+        aws_secret_key: '{{ "{{" }} aws_secret_key {{ "}}" }}'{{ ippermissions(sg) }}{{ ippermissionsegress(sg) }}
+{%- endmacro -%}
+{{ show() }}
